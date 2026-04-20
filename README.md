@@ -93,10 +93,6 @@ FinancialManagement.Blazor/
 └── Program.cs
 ```
 
-## License
-
-This project is open source. See the [LICENSE](LICENSE) file for details.
-
 ## Author
 
 Fariborz Seyedi

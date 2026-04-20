@@ -96,3 +96,12 @@ FinancialManagement.Blazor/
 ## License
 
 This project is open source. See the [LICENSE](LICENSE) file for details.
+
+## Author
+
+Fariborz Seyedi
+Senior .NET Developer
+Istanbul, Turkey
+
+LinkedIn: [linkedin.com/in/fariborz-seyedi-49582934b](https://linkedin.com/in/fariborz-seyedi-49582934b)
+GitHub: [github.com/fzseyedi](https://github.com/fzseyedi)

@@ -1,0 +1,54 @@
+﻿@using Microsoft.AspNetCore.Components
+
+<div class="modal @(IsVisible ? "show d-block" : "")" tabindex="-1" style="@(IsVisible ? "background-color: rgba(0, 0, 0, 0.5);" : "display: none;")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@Title</h5>
+                <button type="button" class="btn-close" @onclick="OnCancel" disabled="@IsLoading"></button>
+            </div>
+            <div class="modal-body">
+                @Message
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="OnCancel" disabled="@IsLoading">@CancelButtonText</button>
+                <button type="button" class="btn @ButtonClass" @onclick="OnConfirm" disabled="@IsLoading">
+                    @if (IsLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    }
+                    @ConfirmButtonText
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Confirm";
+
+    [Parameter]
+    public string Message { get; set; } = string.Empty;
+
+    [Parameter]
+    public string ConfirmButtonText { get; set; } = "Confirm";
+
+    [Parameter]
+    public string CancelButtonText { get; set; } = "Cancel";
+
+    [Parameter]
+    public string ButtonClass { get; set; } = "btn-primary";
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

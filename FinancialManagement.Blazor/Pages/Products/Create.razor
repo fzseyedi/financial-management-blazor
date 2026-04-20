@@ -1,0 +1,93 @@
+﻿@page "/products/create"
+@using FinancialManagement.Blazor.Models.Products
+@using FinancialManagement.Blazor.Services.Products
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@inject ProductApiService ProductApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Product</PageTitle>
+
+<h3>Create Product</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label class="form-label">Code</label>
+        <InputText class="form-control" @bind-Value="_model.Code" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <InputText class="form-control" @bind-Value="_model.Name" />
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Unit Price</label>
+        <InputNumber class="form-control" @bind-Value="_model.UnitPrice" />
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" disabled="@_isSaving">Save</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isSaving">Cancel</button>
+    </div>
+</EditForm>
+
+@code {
+    private CreateProductFormModel _model = new();
+    private string? _error;
+    private bool _isSaving;
+
+    private async Task HandleSubmitAsync()
+    {
+        _error = null;
+        _isSaving = true;
+
+        try
+        {
+            var request = new CreateProductRequest(
+                _model.Code.Trim(),
+                _model.Name.Trim(),
+                _model.UnitPrice);
+
+            await ProductApiService.CreateAsync(request);
+            NavigationManager.NavigateTo("/products");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/products");
+    }
+
+    private sealed class CreateProductFormModel
+    {
+        [Required(ErrorMessage = "Code is required.")]
+        [StringLength(20, ErrorMessage = "Code cannot exceed 20 characters.")]
+        public string Code { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Name is required.")]
+        [StringLength(200, ErrorMessage = "Name cannot exceed 200 characters.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Unit price is required.")]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Unit price must be greater than zero.")]
+        public decimal UnitPrice { get; set; }
+    }
+}

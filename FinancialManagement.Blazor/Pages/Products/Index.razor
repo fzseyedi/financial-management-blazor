@@ -1,0 +1,252 @@
+﻿@page "/products"
+
+@using FinancialManagement.Blazor.Components.Shared
+@using FinancialManagement.Blazor.Models.Common
+@using FinancialManagement.Blazor.Models.Products
+@using FinancialManagement.Blazor.Services.Products
+@using Microsoft.AspNetCore.Components.Web
+@using FinancialManagement.Blazor.Components
+@inject ProductApiService ProductApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Products</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Products</h3>
+    <button class="btn btn-primary" @onclick="GoToCreate">Create Product</button>
+</div>
+
+<div class="mb-3">
+    <div class="btn-group" role="group">
+        <button type="button" class="btn @(_filterStatus == FilterStatus.All ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.All)">All Products</button>
+        <button type="button" class="btn @(_filterStatus == FilterStatus.Active ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.Active)">Active Only</button>
+        <button type="button" class="btn @(_filterStatus == FilterStatus.Inactive ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.Inactive)">Inactive Only</button>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+    <div class="alert alert-success">@_successMessage</div>
+}
+@if (_products is null)
+{
+    <p>Loading...</p>
+}
+else if (_products.Count == 0)
+{
+    <p>No products found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Unit Price</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var product in _products)
+        {
+            <tr>
+                <td>@product.Code</td>
+                <td>@product.Name</td>
+                <td>@product.UnitPrice</td>
+                <td>@product.IsActive</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" @onclick="() => GoToEdit(product.Id)" disabled="@_isDeleting">Edit</button>
+                    <button class="btn btn-sm @(product.IsActive ? "btn-warning" : "btn-success")" @onclick="() => ToggleStatusAsync(product)" disabled="@_isDeleting">@(product.IsActive ? "Deactivate" : "Activate")</button>
+                    <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteConfirmationAsync(product)" disabled="@_isDeleting">Delete</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <Pagination
+        PageNumber="_pageNumber"
+        PageSize="_pageSize"
+        TotalCount="_totalCount"
+        TotalPages="_totalPages"
+        OnPageChanged="OnPageChangedAsync"
+        OnPageSizeChanged="OnPageSizeChangedAsync" />
+}
+
+<ConfirmationModal
+    IsVisible="_showDeleteModal"
+    Title="Delete Product"
+    Message="@_deleteConfirmationMessage"
+    ConfirmButtonText="Delete"
+    CancelButtonText="Cancel"
+    ButtonClass="btn-danger"
+    IsLoading="@_isDeleting"
+    OnConfirm="ConfirmDeleteAsync"
+    OnCancel="CancelDeleteAsync" />
+
+@code {
+    private enum FilterStatus
+    {
+        All,
+        Active,
+        Inactive
+    }
+
+    private List<ProductDto>? _products;
+    private string? _error;
+    private string? _successMessage;
+    private FilterStatus _filterStatus = FilterStatus.All;
+    private bool _showDeleteModal;
+    private bool _isDeleting;
+    private ProductDto? _productToDelete;
+    private string _deleteConfirmationMessage = string.Empty;
+
+    private int _pageNumber = 1;
+    private int _pageSize = 10;
+    private int _totalCount;
+    private int _totalPages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductsAsync();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        try
+        {
+            _error = null;
+
+            var includeInactive = _filterStatus != FilterStatus.Active;
+            var response = await ProductApiService.GetAllPagedAsync(
+                includeInactive: includeInactive,
+                pageNumber: _pageNumber,
+                pageSize: _pageSize);
+
+            _products = _filterStatus switch
+            {
+                FilterStatus.All => response.Items.ToList(),
+                FilterStatus.Active => response.Items.Where(p => p.IsActive).ToList(),
+                FilterStatus.Inactive => response.Items.Where(p => !p.IsActive).ToList(),
+                _ => []
+            };
+
+            _totalCount = response.TotalCount;
+            _totalPages = response.TotalPages;
+            _pageNumber = response.PageNumber;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SetFilterAsync(FilterStatus filterStatus)
+    {
+        _filterStatus = filterStatus;
+        _pageNumber = 1;
+        await LoadProductsAsync();
+    }
+
+    private async Task OnPageChangedAsync(int page)
+    {
+        _pageNumber = page;
+        await LoadProductsAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int pageSize)
+    {
+        _pageSize = pageSize;
+        _pageNumber = 1;
+        await LoadProductsAsync();
+    }
+
+    private void GoToCreate()
+    {
+        NavigationManager.NavigateTo("/products/create");
+    }
+
+    private void GoToEdit(int id)
+    {
+        NavigationManager.NavigateTo($"/products/edit/{id}");
+    }
+
+    private async Task ToggleStatusAsync(ProductDto product)
+    {
+        try
+        {
+            _error = null;
+            _successMessage = null;
+            if (product.IsActive)
+            {
+                await ProductApiService.DeactivateAsync(product.Id);
+            }
+            else
+            {
+                await ProductApiService.ActivateAsync(product.Id);
+            }
+
+            await LoadProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ShowDeleteConfirmationAsync(ProductDto product)
+    {
+        _productToDelete = product;
+        _deleteConfirmationMessage = $"Are you sure you want to delete product '{product.Code} - {product.Name}'? This action cannot be undone.";
+        _showDeleteModal = true;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_productToDelete is null)
+            return;
+
+        _isDeleting = true;
+        try
+        {
+            _error = null;
+            await ProductApiService.DeleteAsync(_productToDelete.Id);
+            _successMessage = $"Product '{_productToDelete.Code} - {_productToDelete.Name}' has been successfully deleted.";
+            _showDeleteModal = false;
+            _productToDelete = null;
+
+            // Clear success message after 5 seconds
+            _ = Task.Delay(5000).ContinueWith(async _ =>
+            {
+                await InvokeAsync(() =>
+                {
+                    _successMessage = null;
+                    StateHasChanged();
+                });
+            });
+
+            await LoadProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    private void CancelDeleteAsync()
+    {
+        _showDeleteModal = false;
+        _productToDelete = null;
+        _deleteConfirmationMessage = string.Empty;
+    }
+}

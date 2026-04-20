@@ -1,0 +1,67 @@
+﻿@page "/reports/unpaid-invoices"
+@using FinancialManagement.Blazor.Models.Reports
+@using FinancialManagement.Blazor.Services.Reports
+@using Microsoft.AspNetCore.Components.Web
+@inject ReportApiService ReportApiService
+
+<PageTitle>Unpaid Invoices</PageTitle>
+
+<h3>Unpaid Invoices</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_invoices is null)
+{
+    <p>Loading...</p>
+}
+else if (_invoices.Count == 0)
+{
+    <p>No unpaid invoices found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Invoice</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Remaining</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var invoice in _invoices)
+        {
+            <tr>
+                <td>@invoice.InvoiceNumber</td>
+                <td>@invoice.CustomerName</td>
+                <td>@invoice.InvoiceDate.ToShortDateString()</td>
+                <td>@invoice.TotalAmount</td>
+                <td>@invoice.PaidAmount</td>
+                <td>@invoice.RemainingAmount</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UnpaidInvoiceDto>? _invoices;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _invoices = await ReportApiService.GetUnpaidInvoicesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

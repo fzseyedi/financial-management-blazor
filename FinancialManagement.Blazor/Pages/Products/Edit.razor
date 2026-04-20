@@ -1,0 +1,129 @@
+﻿@page "/products/edit/{Id:int}"
+@using FinancialManagement.Blazor.Models.Products
+@using FinancialManagement.Blazor.Services.Products
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+@inject ProductApiService ProductApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Product</PageTitle>
+
+<h3>Edit Product</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else if (_model is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Code</label>
+            <InputText class="form-control" @bind-Value="_model.Code" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Name</label>
+            <InputText class="form-control" @bind-Value="_model.Name" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Unit Price</label>
+            <InputNumber class="form-control" @bind-Value="_model.UnitPrice" />
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary" disabled="@_isSaving">Save</button>
+            <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isSaving">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private UpdateProductFormModel? _model;
+    private string? _error;
+    private bool _isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var product = await ProductApiService.GetByIdAsync(Id);
+            if (product is null)
+            {
+                _error = "Product not found.";
+                return;
+            }
+
+            _model = new UpdateProductFormModel
+            {
+                Code = product.Code,
+                Name = product.Name,
+                UnitPrice = product.UnitPrice
+            };
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_model is null)
+            return;
+
+        _error = null;
+        _isSaving = true;
+
+        try
+        {
+            var request = new UpdateProductRequest(
+                _model.Code.Trim(),
+                _model.Name.Trim(),
+                _model.UnitPrice);
+
+            await ProductApiService.UpdateAsync(Id, request);
+            NavigationManager.NavigateTo("/products");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/products");
+    }
+
+    private sealed class UpdateProductFormModel
+    {
+        [Required(ErrorMessage = "Code is required.")]
+        [StringLength(20, ErrorMessage = "Code cannot exceed 20 characters.")]
+        public string Code { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Name is required.")]
+        [StringLength(200, ErrorMessage = "Name cannot exceed 200 characters.")]
+        public string Name { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Unit price is required.")]
+        [Range(0.01, double.MaxValue, ErrorMessage = "Unit price must be greater than zero.")]
+        public decimal UnitPrice { get; set; }
+    }
+}

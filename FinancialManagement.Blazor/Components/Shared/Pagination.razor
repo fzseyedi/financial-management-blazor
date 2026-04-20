@@ -1,0 +1,101 @@
+﻿@namespace FinancialManagement.Blazor.Components.Shared
+
+@if (TotalPages > 1)
+{
+    <nav aria-label="Page navigation">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Showing @(((PageNumber - 1) * PageSize) + 1)–@(Math.Min(PageNumber * PageSize, TotalCount)) of @TotalCount
+            </div>
+            <ul class="pagination mb-0">
+                <li class="page-item @(PageNumber <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPageAsync(PageNumber - 1)" disabled="@(PageNumber <= 1)">&laquo;</button>
+                </li>
+                @foreach (var page in GetPageNumbers())
+                {
+                    @if (page == -1)
+                    {
+                        <li class="page-item disabled">
+                            <span class="page-link">&hellip;</span>
+                        </li>
+                    }
+                    else
+                    {
+                        <li class="page-item @(page == PageNumber ? "active" : "")">
+                            <button class="page-link" @onclick="() => GoToPageAsync(page)">@(page)</button>
+                        </li>
+                    }
+                }
+                <li class="page-item @(PageNumber >= TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPageAsync(PageNumber + 1)" disabled="@(PageNumber >= TotalPages)">&raquo;</button>
+                </li>
+            </ul>
+            <div>
+                <select class="form-select form-select-sm" value="@PageSize" @onchange="OnPageSizeChangedAsync">
+                    @foreach (var size in PageSizeOptions)
+                    {
+                        <option value="@size">@size per page</option>
+                    }
+                </select>
+            </div>
+        </div>
+    </nav>
+}
+
+@code {
+    [Parameter, EditorRequired] public int PageNumber { get; set; }
+    [Parameter, EditorRequired] public int PageSize { get; set; }
+    [Parameter, EditorRequired] public int TotalCount { get; set; }
+    [Parameter, EditorRequired] public int TotalPages { get; set; }
+    [Parameter, EditorRequired] public EventCallback<int> OnPageChanged { get; set; }
+    [Parameter, EditorRequired] public EventCallback<int> OnPageSizeChanged { get; set; }
+    [Parameter] public int[] PageSizeOptions { get; set; } = [10, 25, 50];
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (page < 1 || page > TotalPages || page == PageNumber)
+            return;
+
+        await OnPageChanged.InvokeAsync(page);
+    }
+
+    private async Task OnPageSizeChangedAsync(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var newSize) && newSize != PageSize)
+        {
+            await OnPageSizeChanged.InvokeAsync(newSize);
+        }
+    }
+
+    private List<int> GetPageNumbers()
+    {
+        var pages = new List<int>();
+        const int maxVisible = 5;
+
+        if (TotalPages <= maxVisible + 2)
+        {
+            for (var i = 1; i <= TotalPages; i++)
+                pages.Add(i);
+        }
+        else
+        {
+            pages.Add(1);
+
+            var start = Math.Max(2, PageNumber - (maxVisible / 2));
+            var end = Math.Min(TotalPages - 1, PageNumber + (maxVisible / 2));
+
+            if (start > 2)
+                pages.Add(-1); // ellipsis
+
+            for (var i = start; i <= end; i++)
+                pages.Add(i);
+
+            if (end < TotalPages - 1)
+                pages.Add(-1); // ellipsis
+
+            pages.Add(TotalPages);
+        }
+
+        return pages;
+    }
+}

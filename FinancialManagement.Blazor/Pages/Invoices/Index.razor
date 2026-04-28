@@ -1,0 +1,373 @@
+﻿@page "/invoices"
+
+@using FinancialManagement.Blazor.Components.Shared
+@using FinancialManagement.Blazor.Models.Common
+@using FinancialManagement.Blazor.Models.Customers
+@using FinancialManagement.Blazor.Models.Invoices
+@using FinancialManagement.Blazor.Services.Customers
+@using FinancialManagement.Blazor.Services.Invoices
+@using Microsoft.AspNetCore.Components.Web
+@using FinancialManagement.Blazor.Components
+@inject InvoiceApiService InvoiceApiService
+@inject CustomerApiService CustomerApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Invoices</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Invoices</h3>
+    <button class="btn btn-primary" @onclick="GoToCreate">Create Invoice</button>
+</div>
+
+<div class="mb-3 row g-2 align-items-end">
+    <div class="col-auto">
+        <div class="btn-group" role="group">
+            <button type="button" class="btn @(_filterStatus == FilterStatus.All ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.All)">All</button>
+            <button type="button" class="btn @(_filterStatus == FilterStatus.Draft ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.Draft)">Draft</button>
+            <button type="button" class="btn @(_filterStatus == FilterStatus.Issued ? "btn-primary" : "btn-outline-primary")" @onclick="() => SetFilterAsync(FilterStatus.Issued)">Issued</button>
+        </div>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">Customer</label>
+        <select class="form-select form-select-sm" @onchange="OnCustomerFilterChangedAsync">
+            <option value="">All Customers</option>
+            @foreach (var customer in _customers)
+            {
+                <option value="@customer.Id">@customer.Code - @customer.Name</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">Customer Name</label>
+        <input type="text" class="form-control form-control-sm" placeholder="Search by name..."
+               @bind="_customerName" @bind:event="oninput" @bind:after="ApplyCustomerNameFilterAsync" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">From</label>
+        <input type="date" class="form-control form-control-sm" @bind="_dateFrom" @bind:after="ApplyDateFilterAsync" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label mb-0">To</label>
+        <input type="date" class="form-control form-control-sm" @bind="_dateTo" @bind:after="ApplyDateFilterAsync" />
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+    <div class="alert alert-success">@_successMessage</div>
+}
+@if (_invoices is null)
+{
+    <p>Loading...</p>
+}
+else if (_invoices.Count == 0)
+{
+    <p>No invoices found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Invoice #</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Remaining</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var invoice in _invoices)
+        {
+            <tr>
+                <td>@invoice.InvoiceNumber</td>
+                <td>@invoice.CustomerName</td>
+                <td>@invoice.InvoiceDate.ToString("yyyy-MM-dd")</td>
+                <td>@invoice.TotalAmount.ToString("N2")</td>
+                <td>@invoice.PaidAmount.ToString("N2")</td>
+                <td>@invoice.RemainingAmount.ToString("N2")</td>
+                <td>
+                    <span class="badge @GetStatusBadgeClass(invoice.Status)">
+                        @GetStatusLabel(invoice.Status)
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary" @onclick="() => GoToEdit(invoice.Id)" disabled="@_isBusy">Edit</button>
+                    @if (invoice.Status == (int)InvoiceStatus.Draft)
+                    {
+                        <button class="btn btn-sm btn-success" @onclick="() => ShowIssueConfirmationAsync(invoice)" disabled="@_isBusy">Issue</button>
+                    }
+                    <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteConfirmationAsync(invoice)" disabled="@_isBusy">Delete</button>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    <Pagination
+        PageNumber="_pageNumber"
+        PageSize="_pageSize"
+        TotalCount="_totalCount"
+        TotalPages="_totalPages"
+        OnPageChanged="OnPageChangedAsync"
+        OnPageSizeChanged="OnPageSizeChangedAsync" />
+}
+
+<ConfirmationModal
+    IsVisible="_showDeleteModal"
+    Title="Delete Invoice"
+    Message="@_confirmationMessage"
+    ConfirmButtonText="Delete"
+    CancelButtonText="Cancel"
+    ButtonClass="btn-danger"
+    IsLoading="@_isBusy"
+    OnConfirm="ConfirmDeleteAsync"
+    OnCancel="CancelModalAsync" />
+
+<ConfirmationModal
+    IsVisible="_showIssueModal"
+    Title="Issue Invoice"
+    Message="@_confirmationMessage"
+    ConfirmButtonText="Issue"
+    CancelButtonText="Cancel"
+    ButtonClass="btn-success"
+    IsLoading="@_isBusy"
+    OnConfirm="ConfirmIssueAsync"
+    OnCancel="CancelModalAsync" />
+
+@code {
+    private enum InvoiceStatus { Draft = 0, Issued = 1, PartiallyPaid = 2, Paid = 3, Cancelled = 4 }
+
+    private enum FilterStatus { All, Draft, Issued }
+
+    private List<InvoiceDto>? _invoices;
+    private List<CustomerDto> _customers = [];
+    private string? _error;
+    private string? _successMessage;
+    private FilterStatus _filterStatus = FilterStatus.All;
+    private int? _selectedCustomerId;
+    private string? _customerName;
+    private DateTime? _dateFrom;
+    private DateTime? _dateTo;
+
+    private bool _showDeleteModal;
+    private bool _showIssueModal;
+    private bool _isBusy;
+    private InvoiceDto? _invoiceToAct;
+    private string _confirmationMessage = string.Empty;
+
+    private int _pageNumber = 1;
+    private int _pageSize = 10;
+    private int _totalCount;
+    private int _totalPages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _customers = await CustomerApiService.GetAllAsync(includeInactive: false);
+        await LoadInvoicesAsync();
+    }
+
+    private async Task LoadInvoicesAsync()
+    {
+        try
+        {
+            _error = null;
+
+            var includeIssued = _filterStatus != FilterStatus.Draft;
+
+            var response = await InvoiceApiService.GetAllPagedAsync(
+                customerId: _selectedCustomerId,
+                customerName: _customerName,
+                includeIssued: includeIssued,
+                dateFrom: _dateFrom,
+                dateTo: _dateTo,
+                pageNumber: _pageNumber,
+                pageSize: _pageSize);
+
+            _invoices = _filterStatus switch
+            {
+                FilterStatus.Draft => response.Items.Where(i => i.Status == (int)InvoiceStatus.Draft).ToList(),
+                FilterStatus.Issued => response.Items.Where(i => i.Status != (int)InvoiceStatus.Draft).ToList(),
+                _ => response.Items.ToList()
+            };
+
+            _totalCount = response.TotalCount;
+            _totalPages = response.TotalPages;
+            _pageNumber = response.PageNumber;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SetFilterAsync(FilterStatus filterStatus)
+    {
+        _filterStatus = filterStatus;
+        _pageNumber = 1;
+        await LoadInvoicesAsync();
+    }
+
+    private async Task OnCustomerFilterChangedAsync(ChangeEventArgs e)
+    {
+        _selectedCustomerId = int.TryParse(e.Value?.ToString(), out var id) ? id : null;
+        _pageNumber = 1;
+        await LoadInvoicesAsync();
+    }
+
+    private async Task ApplyCustomerNameFilterAsync()
+    {
+        _pageNumber = 1;
+        await LoadInvoicesAsync();
+    }
+
+    private async Task ApplyDateFilterAsync()
+    {
+        _pageNumber = 1;
+        await LoadInvoicesAsync();
+    }
+
+    private async Task OnPageChangedAsync(int page)
+    {
+        _pageNumber = page;
+        await LoadInvoicesAsync();
+    }
+
+    private async Task OnPageSizeChangedAsync(int pageSize)
+    {
+        _pageSize = pageSize;
+        _pageNumber = 1;
+        await LoadInvoicesAsync();
+    }
+
+    private void GoToCreate()
+    {
+        NavigationManager.NavigateTo("/invoices/create");
+    }
+
+    private void GoToEdit(int id)
+    {
+        NavigationManager.NavigateTo($"/invoices/edit/{id}");
+    }
+
+    private Task ShowIssueConfirmationAsync(InvoiceDto invoice)
+    {
+        _invoiceToAct = invoice;
+        _confirmationMessage = $"Are you sure you want to issue invoice '{invoice.InvoiceNumber}'? This action cannot be undone.";
+        _showIssueModal = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task ConfirmIssueAsync()
+    {
+        if (_invoiceToAct is null)
+            return;
+
+        _isBusy = true;
+        try
+        {
+            _error = null;
+            await InvoiceApiService.IssueAsync(_invoiceToAct.Id);
+            _successMessage = $"Invoice '{_invoiceToAct.InvoiceNumber}' has been issued successfully.";
+            _showIssueModal = false;
+            _invoiceToAct = null;
+            ScheduleClearSuccessMessage();
+            await LoadInvoicesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _showIssueModal = false;
+            _invoiceToAct = null;
+            _confirmationMessage = string.Empty;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private Task ShowDeleteConfirmationAsync(InvoiceDto invoice)
+    {
+        _invoiceToAct = invoice;
+        _confirmationMessage = $"Are you sure you want to delete invoice '{invoice.InvoiceNumber}'? This action cannot be undone.";
+        _showDeleteModal = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_invoiceToAct is null)
+            return;
+
+        _isBusy = true;
+        try
+        {
+            _error = null;
+            await InvoiceApiService.DeleteAsync(_invoiceToAct.Id);
+            _successMessage = $"Invoice '{_invoiceToAct.InvoiceNumber}' has been deleted successfully.";
+            _showDeleteModal = false;
+            _invoiceToAct = null;
+            ScheduleClearSuccessMessage();
+            await LoadInvoicesAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _showDeleteModal = false;
+            _invoiceToAct = null;
+            _confirmationMessage = string.Empty;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void CancelModalAsync()
+    {
+        _showDeleteModal = false;
+        _showIssueModal = false;
+        _invoiceToAct = null;
+        _confirmationMessage = string.Empty;
+    }
+
+    private void ScheduleClearSuccessMessage()
+    {
+        _ = Task.Delay(5000).ContinueWith(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                _successMessage = null;
+                StateHasChanged();
+            });
+        });
+    }
+
+    private static string GetStatusLabel(int status) => (InvoiceStatus)status switch
+    {
+        InvoiceStatus.Draft         => "Draft",
+        InvoiceStatus.Issued        => "Issued",
+        InvoiceStatus.PartiallyPaid => "Partially Paid",
+        InvoiceStatus.Paid          => "Paid",
+        InvoiceStatus.Cancelled     => "Cancelled",
+        _                           => "Unknown"
+    };
+
+    private static string GetStatusBadgeClass(int status) => (InvoiceStatus)status switch
+    {
+        InvoiceStatus.Draft         => "bg-secondary",
+        InvoiceStatus.Issued        => "bg-primary",
+        InvoiceStatus.PartiallyPaid => "bg-warning text-dark",
+        InvoiceStatus.Paid          => "bg-success",
+        InvoiceStatus.Cancelled     => "bg-danger",
+        _                           => "bg-secondary"
+    };
+}

@@ -6,9 +6,10 @@ A professional **Blazor Server** front-end application for managing customers, p
 
 - **Customer Management** — Create, edit, activate/deactivate, and delete customers with paginated listing and status filtering.
 - **Product Management** — Create, edit, activate/deactivate, and delete products with paginated listing and status filtering.
-- **Invoices & Payments** — View and manage invoices and payments.
+- **Invoice Management** — Create, edit, issue, and delete invoices with advanced filtering by customer, date range, and status. Support for draft/issued/partially-paid/paid/cancelled status tracking. Optimistic concurrency control via version tokens. Lock editing for non-draft invoices.
+- **Line Item Management** — Add, edit, and remove invoice line items with product selection via an interactive product picker modal. Real-time calculation of line totals and invoice grand totals.
 - **Reports** — View unpaid invoices report.
-- **Shared Components** — Reusable pagination and confirmation modal components.
+- **Shared Components** — Reusable pagination, confirmation modal, and product picker modal components.
 - **Structured Logging** — Integrated with [Serilog](https://serilog.net/) for structured, file-based logging.
 
 ## Tech Stack
@@ -70,18 +71,19 @@ FinancialManagement.Blazor/
 ├── Components/
 │   ├── Layout/          # MainLayout, NavMenu, ReconnectModal
 │   ├── Pages/           # Home, Error, NotFound
-│   └── Shared/          # Pagination, ConfirmationModal
+│   └── Shared/          # Pagination, ConfirmationModal, ProductPickerModal
 ├── Models/
 │   ├── Common/          # ApiSettings, PaginatedResponse
 │   ├── Customers/       # CustomerDto, Create/Update request records
 │   ├── Products/        # ProductDto, Create/Update request records
-│   ├── Invoices/        # Invoice models
+│   ├── Invoices/        # InvoiceDto, InvoiceItemDto, CreateInvoiceRequest, UpdateInvoiceRequest
 │   ├── Payments/        # Payment models
 │   └── Reports/         # UnpaidInvoiceDto
 ├── Pages/
 │   ├── Customers/       # Index, Create, Edit
 │   ├── Products/        # Index, Create, Edit
-│   ├── Invoices/        # Invoice pages
+│   ├── Invoices/        # Index, Create, Edit
+│   ├── Payments/        # Payment pages
 │   └── Reports/         # UnpaidInvoices
 ├── Services/
 │   ├── Customers/       # CustomerApiService

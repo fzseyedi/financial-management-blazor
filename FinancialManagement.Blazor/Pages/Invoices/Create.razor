@@ -1,0 +1,351 @@
+﻿@page "/invoices/create"
+
+@using FinancialManagement.Blazor.Components.Shared
+@using FinancialManagement.Blazor.Models.Customers
+@using FinancialManagement.Blazor.Models.Invoices
+@using FinancialManagement.Blazor.Models.Products
+@using FinancialManagement.Blazor.Services.Customers
+@using FinancialManagement.Blazor.Services.Invoices
+@using FinancialManagement.Blazor.Services.Products
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+
+@inject InvoiceApiService InvoiceApiService
+@inject CustomerApiService CustomerApiService
+@inject ProductApiService ProductApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Invoice</PageTitle>
+
+<h3>Create Invoice</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <label class="form-label">Customer <span class="text-danger">*</span></label>
+            <InputSelect class="form-select" @bind-Value="_model.CustomerId">
+                <option value="0">-- Select Customer --</option>
+                @foreach (var c in _customers)
+                {
+                    <option value="@c.Id">@c.Code - @c.Name</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => _model.CustomerId" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Invoice Date <span class="text-danger">*</span></label>
+            <InputDate class="form-control" @bind-Value="_model.InvoiceDate" />
+            <ValidationMessage For="() => _model.InvoiceDate" />
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <InputTextArea class="form-control" @bind-Value="_model.Notes" rows="2" />
+    </div>
+
+    <h5>Items</h5>
+
+    @if (_model.Items.Count == 0)
+    {
+        <p class="text-muted">No items added yet.</p>
+    }
+    else
+    {
+        <table class="table table-bordered table-sm">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:160px">Product Code</th>
+                    <th></th>
+                    <th>Product Name</th>
+                    <th style="width:130px">Unit Price</th>
+                    <th style="width:120px">Quantity</th>
+                    <th style="width:130px">Total</th>
+                    <th style="width:60px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < _model.Items.Count; i++)
+                {
+                    var index = i;
+                    var item = _model.Items[index];
+                    <tr>
+                        <td>
+                            <input type="text" class="form-control form-control-sm"
+                                   value="@item.ProductCode"
+                                   @onchange="e => OnProductCodeChangedAsync(index, e.Value?.ToString())" />
+                            @if (!string.IsNullOrWhiteSpace(item.CodeError))
+                            {
+                                <small class="text-danger">@item.CodeError</small>
+                            }
+                        </td>
+                        <td class="align-middle text-center">
+                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    title="Browse products"
+                                    @onclick="() => OpenProductPicker(index)">
+                                &#128269;
+                            </button>
+                        </td>
+                        <td class="align-middle">
+                            <input type="text" class="form-control form-control-sm" readonly value="@item.ProductName" />
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" readonly
+                                   value="@item.UnitPrice" />
+                        </td>
+                        <td>
+                            <input type="number" class="form-control form-control-sm" min="0.01" step="0.01"
+                                   value="@item.Quantity"
+                                   @onchange="e => OnQuantityChanged(index, e.Value?.ToString())" />
+                            @if (!string.IsNullOrWhiteSpace(item.QuantityError))
+                            {
+                                <small class="text-danger">@item.QuantityError</small>
+                            }
+                        </td>
+                        <td class="align-middle text-end">
+                            @((item.UnitPrice * item.Quantity).ToString("N2"))
+                        </td>
+                        <td class="align-middle text-center">
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    @onclick="() => RemoveItem(index)">
+                                &times;
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="5" class="text-end fw-bold">Grand Total:</td>
+                    <td class="text-end fw-bold">@GrandTotal.ToString("N2")</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    }
+
+    <div class="mb-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="AddItem">
+            + Add Item
+        </button>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" disabled="@_isSaving">Save</button>
+        <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isSaving">Cancel</button>
+    </div>
+</EditForm>
+
+<ProductPickerModal
+    IsVisible="_showProductPicker"
+    Products="_products"
+    OnProductSelected="OnProductSelectedAsync"
+    OnCancel="CloseProductPicker" />
+
+@code {
+    private CreateInvoiceFormModel _model = new();
+    private List<CustomerDto> _customers = [];
+    private List<ProductDto> _products = [];
+    private string? _error;
+    private bool _isSaving;
+
+    private bool _showProductPicker;
+    private int _pickerTargetIndex;
+
+    private decimal GrandTotal => _model.Items.Sum(i => i.UnitPrice * i.Quantity);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _customers = await CustomerApiService.GetAllAsync(includeInactive: false);
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        if (_model.CustomerId == 0)
+        {
+            _error = "Please select a customer.";
+            return;
+        }
+
+        if (_model.Items.Count == 0)
+        {
+            _error = "Please add at least one item.";
+            return;
+        }
+
+        var hasInvalidItems = _model.Items.Any(i => i.ProductId == 0 || i.Quantity <= 0);
+        if (hasInvalidItems)
+        {
+            _error = "All items must have a valid product and quantity greater than zero.";
+            return;
+        }
+
+        _error = null;
+        _isSaving = true;
+
+        try
+        {
+            var request = new CreateInvoiceRequest(
+                _model.CustomerId,
+                _model.InvoiceDate,
+                string.IsNullOrWhiteSpace(_model.Notes) ? null : _model.Notes.Trim(),
+                _model.Items.Select(i => new CreateInvoiceItemRequest(
+                    i.ProductId,
+                    i.Quantity,
+                    i.UnitPrice))
+                .ToList());
+
+            await InvoiceApiService.CreateAsync(request);
+            NavigationManager.NavigateTo("/invoices");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void AddItem()
+    {
+        _model.Items.Add(new InvoiceItemRow());
+    }
+
+    private void RemoveItem(int index)
+    {
+        _model.Items.RemoveAt(index);
+    }
+
+    private async Task OnProductCodeChangedAsync(int index, string? code)
+    {
+        var item = _model.Items[index];
+        item.ProductCode = code ?? string.Empty;
+        item.CodeError = null;
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            item.ProductId = 0;
+            item.ProductName = string.Empty;
+            item.UnitPrice = 0;
+            return;
+        }
+
+        var product = await ProductApiService.GetByCodeAsync(code.Trim());
+        if (product is null)
+        {
+            item.CodeError = $"Product '{code}' not found.";
+            item.ProductId = 0;
+            item.ProductName = string.Empty;
+            item.UnitPrice = 0;
+        }
+        else
+        {
+            ApplyProduct(index, product);
+        }
+    }
+
+    private void OnQuantityChanged(int index, string? value)
+    {
+        var item = _model.Items[index];
+        item.QuantityError = null;
+
+        if (decimal.TryParse(value, out var qty) && qty > 0)
+        {
+            item.Quantity = qty;
+        }
+        else
+        {
+            item.QuantityError = "Quantity must be greater than zero.";
+        }
+    }
+
+    private void OpenProductPicker(int index)
+    {
+        _pickerTargetIndex = index;
+        if (_products.Count == 0)
+        {
+            _ = LoadProductsAndOpenAsync();
+        }
+        else
+        {
+            _showProductPicker = true;
+        }
+    }
+
+    private async Task LoadProductsAndOpenAsync()
+    {
+        try
+        {
+            _products = await ProductApiService.GetAllAsync(includeInactive: false);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            return;
+        }
+        _showProductPicker = true;
+    }
+
+    private Task OnProductSelectedAsync(ProductDto product)
+    {
+        ApplyProduct(_pickerTargetIndex, product);
+        _showProductPicker = false;
+        return Task.CompletedTask;
+    }
+
+    private void ApplyProduct(int index, ProductDto product)
+    {
+        var item = _model.Items[index];
+        item.ProductId = product.Id;
+        item.ProductCode = product.Code;
+        item.ProductName = product.Name;
+        item.UnitPrice = product.UnitPrice;
+        item.CodeError = null;
+    }
+
+    private void CloseProductPicker()
+    {
+        _showProductPicker = false;
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/invoices");
+    }
+
+    private sealed class CreateInvoiceFormModel
+    {
+        [Required(ErrorMessage = "Customer is required.")]
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a customer.")]
+        public int CustomerId { get; set; }
+
+        [Required(ErrorMessage = "Invoice date is required.")]
+        public DateTime InvoiceDate { get; set; } = DateTime.Today;
+
+        public string? Notes { get; set; }
+
+        public List<InvoiceItemRow> Items { get; set; } = [];
+    }
+
+    private sealed class InvoiceItemRow
+    {
+        public int ProductId { get; set; }
+        public string ProductCode { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
+        public decimal UnitPrice { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public string? CodeError { get; set; }
+        public string? QuantityError { get; set; }
+    }
+}

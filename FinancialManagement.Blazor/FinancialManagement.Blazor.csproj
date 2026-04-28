@@ -13,9 +13,7 @@
     <Folder Include="Components\Reports\" />
     <Folder Include="Components\Payments\" />
     <Folder Include="Components\Products\" />
-    <Folder Include="Models\Invoices\" />
     <Folder Include="Models\Payments\" />
-    <Folder Include="Pages\Invoices\" />
   </ItemGroup>
 
   <ItemGroup>

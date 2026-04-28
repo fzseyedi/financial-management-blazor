@@ -17,16 +17,13 @@ public sealed class CustomerApiService
         bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var response = await GetAllPagedAsync(
+            includeInactive: includeInactive,
+            pageNumber: 1,
+            pageSize: int.MaxValue,
+            cancellationToken: cancellationToken);
 
-        var url = "api/customers";
-        if (includeInactive)
-        {
-            url = QueryHelpers.AddQueryString(url, "includeInactive", "true");
-        }
-
-        var result = await client.GetFromJsonAsync<List<CustomerDto>>(url, cancellationToken);
-        return result ?? [];
+        return response.Items.ToList();
     }
 
     public async Task<PaginatedResponse<CustomerDto>> GetAllPagedAsync(

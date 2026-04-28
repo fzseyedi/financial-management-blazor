@@ -17,14 +17,13 @@ public sealed class ProductApiService
         bool includeInactive = false,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var response = await GetAllPagedAsync(
+            includeInactive: includeInactive,
+            pageNumber: 1,
+            pageSize: int.MaxValue,
+            cancellationToken: cancellationToken);
 
-        var url = includeInactive
-            ? "api/products?includeInactive=true"
-            : "api/products";
-
-        var result = await client.GetFromJsonAsync<List<ProductDto>>(url, cancellationToken);
-        return result ?? [];
+        return response.Items.ToList();
     }
 
     public async Task<PaginatedResponse<ProductDto>> GetAllPagedAsync(
@@ -83,6 +82,17 @@ public sealed class ProductApiService
 
         var result = await client.GetFromJsonAsync<ProductDto>($"api/products/{id}", cancellationToken);
         return result;
+    }
+
+    /// <summary>
+    /// Retrieves a single active product by its code.
+    /// </summary>
+    public async Task<ProductDto?> GetByCodeAsync(
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        var products = await GetAllAsync(includeInactive: false, cancellationToken);
+        return products.FirstOrDefault(p => string.Equals(p.Code, code, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

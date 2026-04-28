@@ -238,6 +238,9 @@ else
         catch (Exception ex)
         {
             _error = ex.Message;
+            _showDeleteModal = false;
+            _customerToDelete = null;
+            _deleteConfirmationMessage = string.Empty;
         }
         finally
         {

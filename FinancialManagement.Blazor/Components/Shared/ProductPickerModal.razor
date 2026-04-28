@@ -1,0 +1,80 @@
+﻿@using FinancialManagement.Blazor.Models.Products
+
+<div class="modal @(IsVisible ? "show d-block" : "")" tabindex="-1" style="@(IsVisible ? "background-color: rgba(0,0,0,0.5);" : "display:none;")">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Select Product</h5>
+                <button type="button" class="btn-close" @onclick="OnCancel"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <input type="text" class="form-control" placeholder="Search by code or name..."
+                           @bind="_search" @bind:event="oninput" />
+                </div>
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Unit Price</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var product in FilteredProducts)
+                        {
+                            <tr>
+                                <td>@product.Code</td>
+                                <td>@product.Name</td>
+                                <td>@product.UnitPrice.ToString("N2")</td>
+                                <td>
+                                    <button type="button" class="btn btn-sm btn-primary"
+                                            @onclick="() => SelectProduct(product)">
+                                        Select
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        @if (!FilteredProducts.Any())
+                        {
+                            <tr><td colspan="4" class="text-center text-muted">No products found.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="OnCancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public List<ProductDto> Products { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<ProductDto> OnProductSelected { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private string _search = string.Empty;
+
+    private IEnumerable<ProductDto> FilteredProducts =>
+        string.IsNullOrWhiteSpace(_search)
+            ? Products
+            : Products.Where(p =>
+                p.Code.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                p.Name.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+    private async Task SelectProduct(ProductDto product)
+    {
+        _search = string.Empty;
+        await OnProductSelected.InvokeAsync(product);
+    }
+}

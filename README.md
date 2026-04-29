@@ -4,6 +4,11 @@ A professional **Blazor Server** front-end application for managing customers, p
 
 ## Features
 
+- **Authentication** — JWT-based login with secure token storage via `ProtectedSessionStorage`. Automatic proactive token refresh (60-second window before expiry) with 401-intercept retry.
+- **Role-based Authorization** — Pages and navigation links are shown/hidden based on user role (`Admin` / regular user).
+- **User Management** *(Admin only)* — Create, edit, and delete application users; assign roles.
+- **Role Management** *(Admin only)* — Create, edit, and delete roles.
+- **My Profile** — Authenticated users can view their profile and change their own password.
 - **Customer Management** — Create, edit, activate/deactivate, and delete customers with paginated listing and status filtering.
 - **Product Management** — Create, edit, activate/deactivate, and delete products with paginated listing and status filtering.
 - **Invoice Management** — Create, edit, issue, and delete invoices with advanced filtering by customer, date range, and status. Support for draft/issued/partially-paid/paid/cancelled status tracking. Optimistic concurrency control via version tokens. Lock editing for non-draft invoices.
@@ -18,7 +23,8 @@ A professional **Blazor Server** front-end application for managing customers, p
 |---|---|
 | Framework | [.NET 10](https://dotnet.microsoft.com/) |
 | UI | [Blazor Server](https://learn.microsoft.com/aspnet/core/blazor/) (Interactive Server rendering) |
-| HTTP Client | `IHttpClientFactory` with named clients |
+| Auth | JWT Bearer tokens, `ProtectedSessionStorage`, `AuthenticationStateProvider` |
+| HTTP Client | `FinancialApiClient` scoped wrapper (Bearer token injected at call time) |
 | Logging | Serilog (file sink, JSON format, rolling daily) |
 | Styling | Bootstrap 5 |
 
@@ -74,22 +80,29 @@ FinancialManagement.Blazor/
 │   └── Shared/          # Pagination, ConfirmationModal, ProductPickerModal
 ├── Models/
 │   ├── Common/          # ApiSettings, PaginatedResponse
+│   ├── Auth/            # LoginRequest, TokenResponse
 │   ├── Customers/       # CustomerDto, Create/Update request records
 │   ├── Products/        # ProductDto, Create/Update request records
 │   ├── Invoices/        # InvoiceDto, InvoiceItemDto, CreateInvoiceRequest, UpdateInvoiceRequest
 │   ├── Payments/        # Payment models
-│   └── Reports/         # UnpaidInvoiceDto
+│   ├── Reports/         # UnpaidInvoiceDto
+│   └── Users/           # UserDto, RoleDto, Create/Update request records
 ├── Pages/
 │   ├── Customers/       # Index, Create, Edit
-│   ├── Products/        # Index, Create, Edit
 │   ├── Invoices/        # Index, Create, Edit
 │   ├── Payments/        # Payment pages
-│   └── Reports/         # UnpaidInvoices
+│   ├── Products/        # Index, Create, Edit
+│   ├── Profile/         # Index (view profile, change password)
+│   ├── Reports/         # UnpaidInvoices
+│   ├── Roles/           # Index, Create, Edit (Admin)
+│   └── Users/           # Index, Create, Edit (Admin)
 ├── Services/
+│   ├── Auth/            # AuthApiService, AuthStateProvider, FinancialApiClient, TokenStore
 │   ├── Customers/       # CustomerApiService
 │   ├── Products/        # ProductApiService
 │   ├── Invoices/        # InvoiceApiService
 │   ├── Payments/        # PaymentApiService
+│   ├── Roles/           # RoleApiService
 │   └── Reports/         # ReportApiService
 ├── appsettings.json
 └── Program.cs

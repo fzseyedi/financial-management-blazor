@@ -1,0 +1,177 @@
+﻿@page "/users"
+@attribute [Authorize(Roles = "Admin")]
+@using FinancialManagement.Blazor.Components.Shared
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using Microsoft.AspNetCore.Components.Web
+@inject UserApiService UserApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Users</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Users</h3>
+    <button class="btn btn-primary" @onclick="GoToCreate">Create User</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+    <div class="alert alert-success">@_successMessage</div>
+}
+
+@if (_users is null)
+{
+    <p>Loading...</p>
+}
+else if (_users.Count == 0)
+{
+    <p>No users found.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in _users)
+            {
+                <tr>
+                    <td>@user.Username</td>
+                    <td>@user.Email</td>
+                    <td>@user.RoleName</td>
+                    <td>
+                        <span class="badge @(user.IsActive ? "bg-success" : "bg-secondary")">
+                            @(user.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-primary me-1" @onclick="() => GoToEdit(user.Id)" disabled="@_isBusy">Edit</button>
+                        <button class="btn btn-sm @(user.IsActive ? "btn-warning" : "btn-success") me-1"
+                                @onclick="() => ToggleStatusAsync(user)" disabled="@_isBusy">
+                            @(user.IsActive ? "Deactivate" : "Activate")
+                        </button>
+                        <button class="btn btn-sm btn-danger" @onclick="() => ShowDeleteConfirmation(user)" disabled="@_isBusy">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<ConfirmationModal
+    IsVisible="_showDeleteModal"
+    Title="Delete User"
+    Message="@_deleteConfirmationMessage"
+    ConfirmButtonText="Delete"
+    CancelButtonText="Cancel"
+    ButtonClass="btn-danger"
+    IsLoading="@_isBusy"
+    OnConfirm="ConfirmDeleteAsync"
+    OnCancel="CancelDelete" />
+
+@code {
+    private List<UserDto>? _users;
+    private string? _error;
+    private string? _successMessage;
+    private bool _isBusy;
+
+    private bool _showDeleteModal;
+    private UserDto? _userToDelete;
+    private string _deleteConfirmationMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsersAsync();
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _error = null;
+        try
+        {
+            _users = await UserApiService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load users: {ex.Message}";
+        }
+    }
+
+    private async Task ToggleStatusAsync(UserDto user)
+    {
+        _error = null;
+        _successMessage = null;
+        _isBusy = true;
+        try
+        {
+            if (user.IsActive)
+                await UserApiService.DeactivateAsync(user.Id);
+            else
+                await UserApiService.ActivateAsync(user.Id);
+
+            _successMessage = $"User '{user.Username}' has been {(user.IsActive ? "deactivated" : "activated")}.";
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void ShowDeleteConfirmation(UserDto user)
+    {
+        _userToDelete = user;
+        _deleteConfirmationMessage = $"Are you sure you want to delete user '{user.Username}'? This action cannot be undone.";
+        _showDeleteModal = true;
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_userToDelete is null) return;
+
+        _isBusy = true;
+        _error = null;
+        _successMessage = null;
+        try
+        {
+            await UserApiService.DeleteAsync(_userToDelete.Id);
+            _successMessage = $"User '{_userToDelete.Username}' has been deleted.";
+            _showDeleteModal = false;
+            _userToDelete = null;
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _showDeleteModal = false;
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void CancelDelete()
+    {
+        _showDeleteModal = false;
+        _userToDelete = null;
+    }
+
+    private void GoToCreate() => NavigationManager.NavigateTo("/users/create");
+    private void GoToEdit(int id) => NavigationManager.NavigateTo($"/users/edit/{id}");
+}

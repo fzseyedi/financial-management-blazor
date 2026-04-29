@@ -1,20 +1,21 @@
 ﻿using FinancialManagement.Blazor.Models.Reports;
+using FinancialManagement.Blazor.Services.Auth;
 
 namespace FinancialManagement.Blazor.Services.Reports;
 
 public sealed class ReportApiService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly FinancialApiClient _apiClient;
 
-    public ReportApiService(IHttpClientFactory httpClientFactory)
+    public ReportApiService(FinancialApiClient apiClient)
     {
-        _httpClientFactory = httpClientFactory;
+        _apiClient = apiClient;
     }
 
     public async Task<List<UnpaidInvoiceDto>> GetUnpaidInvoicesAsync(
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var result = await client.GetFromJsonAsync<List<UnpaidInvoiceDto>>(
             "api/reports/unpaid-invoices",

@@ -1,16 +1,17 @@
 ﻿using FinancialManagement.Blazor.Models.Common;
 using FinancialManagement.Blazor.Models.Invoices;
+using FinancialManagement.Blazor.Services.Auth;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace FinancialManagement.Blazor.Services.Invoices;
 
 public sealed class InvoiceApiService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly FinancialApiClient _apiClient;
 
-    public InvoiceApiService(IHttpClientFactory httpClientFactory)
+    public InvoiceApiService(FinancialApiClient apiClient)
     {
-        _httpClientFactory = httpClientFactory;
+        _apiClient = apiClient;
     }
 
     public async Task<PaginatedResponse<InvoiceDto>> GetAllPagedAsync(
@@ -23,7 +24,7 @@ public sealed class InvoiceApiService
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var queryParams = new Dictionary<string, string?>
         {
@@ -54,10 +55,9 @@ public sealed class InvoiceApiService
         int invoiceId,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PostAsync($"api/invoices/{invoiceId}/issue", null, cancellationToken);
-
         if (!response.IsSuccessStatusCode)
         {
             var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -72,7 +72,7 @@ public sealed class InvoiceApiService
         CreateInvoiceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PostAsJsonAsync("api/invoices", request, cancellationToken);
 
@@ -93,10 +93,9 @@ public sealed class InvoiceApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.DeleteAsync($"api/invoices/{id}", cancellationToken);
-
         if (!response.IsSuccessStatusCode)
         {
             var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -111,7 +110,7 @@ public sealed class InvoiceApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
         return await client.GetFromJsonAsync<InvoiceDto>($"api/invoices/{id}", cancellationToken);
     }
 
@@ -120,7 +119,7 @@ public sealed class InvoiceApiService
         UpdateInvoiceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PutAsJsonAsync($"api/invoices/{id}", request, cancellationToken);
 

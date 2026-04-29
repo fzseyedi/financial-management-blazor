@@ -1,0 +1,131 @@
+﻿@page "/profile"
+@attribute [Authorize]
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthStateProvider
+@inject UserApiService UserApiService
+
+<PageTitle>My Profile</PageTitle>
+
+<h3>My Profile</h3>
+
+<div class="card mb-4" style="max-width: 480px;">
+    <div class="card-header">Account Info</div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-4">Username</dt>
+            <dd class="col-sm-8">@_username</dd>
+
+            <dt class="col-sm-4">Email</dt>
+            <dd class="col-sm-8">@_email</dd>
+
+            <dt class="col-sm-4">Role</dt>
+            <dd class="col-sm-8">@_role</dd>
+        </dl>
+    </div>
+</div>
+
+<div class="card" style="max-width: 480px;">
+    <div class="card-header">Change Password</div>
+    <div class="card-body">
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+        @if (!string.IsNullOrWhiteSpace(_successMessage))
+        {
+            <div class="alert alert-success">@_successMessage</div>
+        }
+
+        <EditForm Model="_form" OnValidSubmit="ChangePasswordAsync">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">New Password</label>
+                <InputText type="password" class="form-control" @bind-Value="_form.NewPassword" />
+                <ValidationMessage For="() => _form.NewPassword" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Confirm Password</label>
+                <InputText type="password" class="form-control" @bind-Value="_form.ConfirmPassword" />
+                <ValidationMessage For="() => _form.ConfirmPassword" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@_isBusy">Update Password</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private string? _username;
+    private string? _email;
+    private string? _role;
+    private int _userId;
+
+    private string? _error;
+    private string? _successMessage;
+    private bool _isBusy;
+
+    private readonly PasswordFormModel _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+
+        _username = user.FindFirst(ClaimTypes.Name)?.Value
+                    ?? user.FindFirst("unique_name")?.Value;
+        _email    = user.FindFirst(ClaimTypes.Email)?.Value
+                    ?? user.FindFirst("email")?.Value;
+        _role     = user.FindFirst(ClaimTypes.Role)?.Value
+                    ?? user.FindFirst("role")?.Value;
+
+        var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+               ?? user.FindFirst("sub")?.Value;
+        _ = int.TryParse(sub, out _userId);
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        if (_userId == 0)
+        {
+            _error = "Unable to identify the current user.";
+            return;
+        }
+
+        _error = null;
+        _successMessage = null;
+        _isBusy = true;
+        try
+        {
+            var request = new ChangePasswordRequest { NewPassword = _form.NewPassword };
+            await UserApiService.ChangePasswordAsync(_userId, request);
+            _successMessage = "Password updated successfully.";
+            _form.NewPassword = string.Empty;
+            _form.ConfirmPassword = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to update password: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private sealed class PasswordFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

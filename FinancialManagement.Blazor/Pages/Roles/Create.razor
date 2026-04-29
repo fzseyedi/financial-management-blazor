@@ -1,0 +1,68 @@
+﻿@page "/roles/create"
+@attribute [Authorize(Roles = "Admin")]
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using Microsoft.AspNetCore.Components.Web
+@inject RoleApiService RoleApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create Role</PageTitle>
+
+<h3>Create Role</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<div class="card" style="max-width: 480px;">
+    <div class="card-body">
+        <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="_form.Name" />
+                <ValidationMessage For="() => _form.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control" rows="3" @bind-Value="_form.Description" />
+                <ValidationMessage For="() => _form.Description" />
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary" disabled="@_isBusy">Save</button>
+                <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+            </div>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private readonly CreateRoleRequest _form = new();
+    private string? _error;
+    private bool _isBusy;
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _isBusy = true;
+        try
+        {
+            await RoleApiService.CreateAsync(_form);
+            NavigationManager.NavigateTo("/roles");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to create role: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void Cancel() => NavigationManager.NavigateTo("/roles");
+}

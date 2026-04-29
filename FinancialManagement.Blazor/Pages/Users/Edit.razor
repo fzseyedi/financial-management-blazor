@@ -1,0 +1,205 @@
+﻿@page "/users/edit/{Id:int}"
+@attribute [Authorize(Roles = "Admin")]
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Web
+@inject UserApiService UserApiService
+@inject RoleApiService RoleApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit User</PageTitle>
+
+<h3>Edit User</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+@if (!string.IsNullOrWhiteSpace(_successMessage))
+{
+    <div class="alert alert-success">@_successMessage</div>
+}
+
+@if (_model is null || _roles is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card mb-4">
+        <div class="card-header">User Details</div>
+        <div class="card-body">
+            <EditForm Model="_model" OnValidSubmit="HandleUpdateAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <InputText class="form-control" @bind-Value="_model.Username" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Email</label>
+                    <InputText class="form-control" @bind-Value="_model.Email" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Role</label>
+                    <InputSelect class="form-select" @bind-Value="_model.RoleId">
+                        @foreach (var role in _roles)
+                        {
+                            <option value="@role.Id">@role.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@_isSaving">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isSaving">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Change Password</div>
+        <div class="card-body">
+            <EditForm Model="_passwordModel" OnValidSubmit="HandleChangePasswordAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="mb-3">
+                    <label class="form-label">New Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="_passwordModel.NewPassword" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Confirm New Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="_passwordModel.ConfirmPassword" />
+                </div>
+
+                <button type="submit" class="btn btn-warning" disabled="@_isChangingPassword">Change Password</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private UpdateUserFormModel? _model;
+    private ChangePasswordFormModel _passwordModel = new();
+    private List<RoleDto>? _roles;
+    private string? _error;
+    private string? _successMessage;
+    private bool _isSaving;
+    private bool _isChangingPassword;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var userTask = UserApiService.GetByIdAsync(Id);
+            var rolesTask = RoleApiService.GetAllAsync();
+            await Task.WhenAll(userTask, rolesTask);
+
+            var user = userTask.Result;
+            if (user is null)
+            {
+                _error = "User not found.";
+                return;
+            }
+
+            _roles = rolesTask.Result;
+            _model = new UpdateUserFormModel
+            {
+                Username = user.Username,
+                Email = user.Email,
+                RoleId = user.RoleId
+            };
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load user: {ex.Message}";
+        }
+    }
+
+    private async Task HandleUpdateAsync()
+    {
+        if (_model is null) return;
+
+        _error = null;
+        _successMessage = null;
+        _isSaving = true;
+        try
+        {
+            var request = new UpdateUserRequest
+            {
+                Username = _model.Username,
+                Email = _model.Email,
+                RoleId = _model.RoleId
+            };
+            await UserApiService.UpdateAsync(Id, request);
+            _successMessage = "User updated successfully.";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task HandleChangePasswordAsync()
+    {
+        _error = null;
+        _successMessage = null;
+        _isChangingPassword = true;
+        try
+        {
+            var request = new ChangePasswordRequest { NewPassword = _passwordModel.NewPassword };
+            await UserApiService.ChangePasswordAsync(Id, request);
+            _successMessage = "Password changed successfully.";
+            _passwordModel = new ChangePasswordFormModel();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isChangingPassword = false;
+        }
+    }
+
+    private void Cancel() => NavigationManager.NavigateTo("/users");
+
+    private sealed class UpdateUserFormModel
+    {
+        [Required(ErrorMessage = "Username is required.")]
+        [MaxLength(100)]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required.")]
+        [EmailAddress(ErrorMessage = "Invalid email address.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a role.")]
+        public int RoleId { get; set; }
+    }
+
+    private sealed class ChangePasswordFormModel
+    {
+        [Required(ErrorMessage = "New password is required.")]
+        [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+        public string NewPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please confirm the new password.")]
+        [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

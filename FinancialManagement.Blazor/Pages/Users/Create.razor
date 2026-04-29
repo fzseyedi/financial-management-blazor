@@ -1,0 +1,128 @@
+﻿@page "/users/create"
+@attribute [Authorize(Roles = "Admin")]
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Web
+
+@inject UserApiService UserApiService
+@inject RoleApiService RoleApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create User</PageTitle>
+
+<h3>Create User</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_roles is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <InputText class="form-control" @bind-Value="_model.Username" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+            <InputText class="form-control" @bind-Value="_model.Email" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <InputText type="password" class="form-control" @bind-Value="_model.Password" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Role</label>
+            <InputSelect class="form-select" @bind-Value="_model.RoleId">
+                <option value="0">-- Select Role --</option>
+                @foreach (var role in _roles)
+                {
+                    <option value="@role.Id">@role.Name</option>
+                }
+            </InputSelect>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary" disabled="@_isSaving">Save</button>
+            <button type="button" class="btn btn-secondary" @onclick="Cancel" disabled="@_isSaving">Cancel</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private CreateUserFormModel _model = new();
+    private List<RoleDto>? _roles;
+    private string? _error;
+    private bool _isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _roles = await RoleApiService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load roles: {ex.Message}";
+            _roles = [];
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _error = null;
+        _isSaving = true;
+        try
+        {
+            var request = new CreateUserRequest
+            {
+                Username = _model.Username,
+                Email = _model.Email,
+                Password = _model.Password,
+                RoleId = _model.RoleId
+            };
+            await UserApiService.CreateAsync(request);
+            NavigationManager.NavigateTo("/users");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private void Cancel() => NavigationManager.NavigateTo("/users");
+
+    private sealed class CreateUserFormModel
+    {
+        [Required(ErrorMessage = "Username is required.")]
+        [MaxLength(100)]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required.")]
+        [EmailAddress(ErrorMessage = "Invalid email address.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Password is required.")]
+        [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Range(1, int.MaxValue, ErrorMessage = "Please select a role.")]
+        public int RoleId { get; set; }
+    }
+}

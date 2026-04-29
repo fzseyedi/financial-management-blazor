@@ -1,6 +1,24 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated == true)
+                {
+                    // Logged in but lacks the required role — go home instead of login loop
+                    NavigationManager.NavigateTo("/", replace: true);
+                }
+                else
+                {
+                    var returnUrl = Uri.EscapeDataString(NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
+                    NavigationManager.NavigateTo($"/login?returnUrl={returnUrl}", replace: true);
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <p class="text-center mt-5">Verifying credentials...</p>
+            </Authorizing>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@inject NavigationManager NavigationManager

@@ -1,16 +1,17 @@
 ﻿using FinancialManagement.Blazor.Models.Common;
 using FinancialManagement.Blazor.Models.Products;
+using FinancialManagement.Blazor.Services.Auth;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace FinancialManagement.Blazor.Services.Products;
 
 public sealed class ProductApiService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly FinancialApiClient _apiClient;
 
-    public ProductApiService(IHttpClientFactory httpClientFactory)
+    public ProductApiService(FinancialApiClient apiClient)
     {
-        _httpClientFactory = httpClientFactory;
+        _apiClient = apiClient;
     }
 
     public async Task<List<ProductDto>> GetAllAsync(
@@ -32,7 +33,7 @@ public sealed class ProductApiService
         int pageSize = 10,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var queryParams = new Dictionary<string, string?>
         {
@@ -54,7 +55,7 @@ public sealed class ProductApiService
         CreateProductRequest request,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PostAsJsonAsync("api/products", request, cancellationToken);
 
@@ -78,7 +79,7 @@ public sealed class ProductApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var result = await client.GetFromJsonAsync<ProductDto>($"api/products/{id}", cancellationToken);
         return result;
@@ -103,7 +104,7 @@ public sealed class ProductApiService
         UpdateProductRequest request,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PutAsJsonAsync($"api/products/{id}", request, cancellationToken);
 
@@ -124,10 +125,9 @@ public sealed class ProductApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PutAsJsonAsync($"api/products/{id}/deactivate", new { }, cancellationToken);
-
         if (!response.IsSuccessStatusCode)
         {
             var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -145,10 +145,9 @@ public sealed class ProductApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.PutAsJsonAsync($"api/products/{id}/activate", new { }, cancellationToken);
-
         if (!response.IsSuccessStatusCode)
         {
             var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -166,7 +165,7 @@ public sealed class ProductApiService
         int id,
         CancellationToken cancellationToken = default)
     {
-        var client = _httpClientFactory.CreateClient("FinancialApi");
+        var client = _apiClient.GetClient();
 
         var response = await client.DeleteAsync($"api/products/{id}", cancellationToken);
 

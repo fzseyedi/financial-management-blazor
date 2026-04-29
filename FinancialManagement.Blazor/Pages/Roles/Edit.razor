@@ -1,0 +1,96 @@
+﻿@page "/roles/edit/{Id:int}"
+@attribute [Authorize(Roles = "Admin")]
+@using FinancialManagement.Blazor.Models.Users
+@using FinancialManagement.Blazor.Services.Users
+@using Microsoft.AspNetCore.Components.Web
+@inject RoleApiService RoleApiService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit Role</PageTitle>
+
+<h3>Edit Role</h3>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+@if (_form is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="card" style="max-width: 480px;">
+        <div class="card-body">
+            <EditForm Model="_form" OnValidSubmit="SubmitAsync">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">Name</label>
+                    <InputText class="form-control" @bind-Value="_form.Name" />
+                    <ValidationMessage For="() => _form.Name" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="_form.Description" />
+                    <ValidationMessage For="() => _form.Description" />
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@_isBusy">Save</button>
+                    <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private UpdateRoleRequest? _form;
+    private string? _error;
+    private bool _isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var role = await RoleApiService.GetByIdAsync(Id);
+            if (role is null)
+            {
+                _error = "Role not found.";
+                return;
+            }
+            _form = new UpdateRoleRequest { Name = role.Name, Description = role.Description };
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load role: {ex.Message}";
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_form is null) return;
+        _error = null;
+        _isBusy = true;
+        try
+        {
+            await RoleApiService.UpdateAsync(Id, _form);
+            NavigationManager.NavigateTo("/roles");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to update role: {ex.Message}";
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private void Cancel() => NavigationManager.NavigateTo("/roles");
+}

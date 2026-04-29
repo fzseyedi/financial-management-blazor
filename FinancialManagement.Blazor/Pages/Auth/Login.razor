@@ -1,0 +1,107 @@
+﻿@page "/login"
+@layout LoginLayout
+@using FinancialManagement.Blazor.Models.Auth
+@using FinancialManagement.Blazor.Services.Auth
+@using FinancialManagement.Blazor.Components.Layout
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@inject AuthApiService AuthApiService
+@inject AuthStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Login</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center vh-100 bg-light">
+    <div class="card shadow-sm" style="width: 380px;">
+        <div class="card-body p-4">
+            <h4 class="card-title text-center mb-4">Financial Management</h4>
+            <h6 class="text-center text-muted mb-4">Please sign in to continue</h6>
+
+            @if (!string.IsNullOrWhiteSpace(_error))
+            {
+                <div class="alert alert-danger py-2">@_error</div>
+            }
+
+            <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label" for="username">Username</label>
+                    <InputText id="username" class="form-control" @bind-Value="_model.Username"
+                               placeholder="Enter username" autocomplete="username" />
+                    <ValidationMessage For="() => _model.Username" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="password">Password</label>
+                    <InputText id="password" type="password" class="form-control" @bind-Value="_model.Password"
+                               placeholder="Enter password" autocomplete="current-password" />
+                    <ValidationMessage For="() => _model.Password" />
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 mt-2" disabled="@_isLoggingIn">
+                    @if (_isLoggingIn)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <span>Signing in...</span>
+                    }
+                    else
+                    {
+                        <span>Sign In</span>
+                    }
+                </button>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private readonly LoginFormModel _model = new();
+    private string? _error;
+    private bool _isLoggingIn;
+
+    private async Task HandleLoginAsync()
+    {
+        _error = null;
+        _isLoggingIn = true;
+
+        try
+        {
+            var request = new LoginRequest
+            {
+                Username = _model.Username,
+                Password = _model.Password
+            };
+
+            var tokens = await AuthApiService.LoginAsync(request);
+            await AuthStateProvider.MarkUserAsAuthenticatedAsync(tokens);
+
+            var redirectTo = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl;
+            NavigationManager.NavigateTo(redirectTo);
+        }
+        catch (HttpRequestException ex) when ((int?)ex.StatusCode == 401)
+        {
+            _error = "Invalid username or password.";
+        }
+        catch (Exception)
+        {
+            _error = "An error occurred while signing in. Please try again.";
+        }
+        finally
+        {
+            _isLoggingIn = false;
+        }
+    }
+
+    private sealed class LoginFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Username is required.")]
+        public string Username { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Password is required.")]
+        public string Password { get; set; } = string.Empty;
+    }
+}
